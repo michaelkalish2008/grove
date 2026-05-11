@@ -152,16 +152,23 @@ Local models handle grunt work. Claude handles planning, judgment, and synthesis
 
 SQLite + FAISS + tag taxonomy with descriptive statistics and auto-management.
 
-The key insight: **tags reduce the search space before embeddings are queried.** Instead of brute-force vector search over a full corpus, the tag layer pre-partitions by topic. Local encoders and LLMs operate on already-filtered subsets — which makes them viable where full-corpus search would require something much heavier.
+```bash
+pip install grove[index]
+# Installs: faiss-cpu, numpy, sentence-transformers
+```
 
-Tag auto-management (consolidation, splitting, drift detection) keeps the taxonomy accurate as the corpus grows.
+The key insight: **tags reduce the search space before embeddings are queried.** Instead of brute-force vector search over a full corpus, the tag layer pre-partitions by topic. Local encoders (`sentence-transformers`) and Ollama LLMs operate on already-filtered subsets — which makes them viable where full-corpus search would require something much heavier.
+
+The encoder (`sentence-transformers`) converts chunks to dense vectors stored as `.npy` files and indexed by FAISS. The tag layer (extracted by a local Ollama model) provides a coarse filter before FAISS is queried, cutting retrieval cost as the corpus grows.
+
+Tag auto-management (consolidation, splitting, drift detection via clustering) keeps the taxonomy accurate without manual curation.
 
 ```python
 # Preview — API stabilizing in S02
 from grove.index import CorpusIndex
 
 idx = CorpusIndex("data/grove.db")
-idx.ingest("path/to/repo/")         # chunk, hash-check, tag, embed
+idx.ingest("path/to/repo/")         # chunk, hash-check, tag (Ollama), embed (sentence-transformers)
 results = idx.search("ReAct agents", top_k=10, tags=["local-ai"])
 ```
 
@@ -217,6 +224,8 @@ grove/
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
 | `OLLAMA_TIMEOUT` | `120` | Generation timeout (seconds) |
 | `OLLAMA_TAG_MODEL` | `qwen3:8b` | Model used for tag extraction (index module) |
+| `GROVE_ENCODER_MODEL` | `all-MiniLM-L6-v2` | sentence-transformers model for chunk embeddings |
+| `SENTENCE_TRANSFORMERS_HOME` | `~/.cache/torch/sentence_transformers` | Local cache for encoder model weights |
 | `CLAUDE_OPS_MODEL` | `claude-3-5-haiku-20241022` | Claude model for plan + synthesize |
 | `CLAUDE_JUDGE_MODEL` | `claude-3-5-haiku-20241022` | Claude model for scoring |
 | `ANTHROPIC_API_KEY` | *(required for swarm)* | Anthropic API key |

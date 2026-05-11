@@ -1,0 +1,8 @@
+# grove[index] — corpus index module
+# Requires: FAISS, numpy, sentence-transformers (encoder), Ollama for tag extraction.
+#
+# Usage:
+#   pip install -r requirements-index.txt
+#   ollama pull qwen3:8b              # default OLLAMA_TAG_MODEL
+
+grove[index]
