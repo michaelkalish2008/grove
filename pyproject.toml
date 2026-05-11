@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "grove"
+version = "0.1.0"
+description = "Local-first AI toolkit — modular schemas, local model swarm, agile board"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["local-ai", "ollama", "sqlite", "agile", "semantic-search"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Core only — zero heavy deps
+dependencies = []
+
+[project.optional-dependencies]
+swarm = [
+    "anthropic>=0.25",      # claude_ops + claude_judge
+]
+index = [
+    "faiss-cpu>=1.8",
+    "numpy>=1.26",
+    "sentence-transformers>=3.0",
+]
+board = []                  # pure SQLite + stdlib — no extra deps
+all = [
+    "grove[swarm]",
+    "grove[index]",
+]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff",
+]
+
+[project.scripts]
+grove = "grove.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["grove*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
