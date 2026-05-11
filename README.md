@@ -1,6 +1,16 @@
 # grove
 
-> **Infrastructure for empowering Claude.** Grove gives Claude the organizational abilities, contextual awareness, and local workforce it needs to engineer its own context — efficiently, scalably, and at a cost that doesn't grow with the corpus.
+> **Infrastructure for empowering Claude.** Grove gives Claude the organizational memory, engineered context layer, and local model workforce it needs to operate efficiently at scale — without the cost and latency growing with the corpus.
+
+---
+
+## Before and after
+
+**Without grove:**
+Claude starts every session blind. You paste files into the context window. It re-reads everything it already understood last time. It forgets what it decided, what it learned, and why it made the tradeoffs it did. At 10,000 files, the context window runs out before the relevant signal arrives.
+
+**With grove:**
+Claude reads its own board — three stories in-progress, one blocker, a learning logged two sessions ago that's directly relevant. It queries a pre-filtered, narratively summarized subspace of the corpus, not the full index. Local models handle keyword extraction, tagging, and summarization. Claude handles planning, judgment, and synthesis. Every decision is written to SQLite. Every session starts informed.
 
 ---
 
@@ -14,6 +24,19 @@ Grove solves both problems.
 
 ---
 
+## Who this is for
+
+Grove is for engineers and researchers who use Claude as a core part of how they work — and who have hit the ceiling of naive context management.
+
+You're likely here if:
+- Your project has grown past the point where pasting files into context works reliably
+- You want Claude to carry knowledge forward across sessions, not re-derive it every time
+- You're running repeated, parallelizable tasks (tagging, summarizing, extracting) that don't need Claude-level capability but do need to be accurate
+- You want visibility into what Claude is doing, what it decided, and how well it's performing — not just outputs
+- You want a system that gets smarter as your corpus grows, not one that degrades
+
+---
+
 ## What grove does
 
 Grove gives Claude three things it doesn't have by default:
@@ -24,19 +47,31 @@ A structured agile board — epics, stories, sprints, learnings, standups — pe
 
 This is not a project management tool bolted onto Claude. It's Claude's own working memory, written in a format Claude can read, query, and update autonomously.
 
+**The learnings system is what makes this more than task tracking.** Every time Claude fixes a bug and understands the root cause, makes an architectural decision, or identifies a process failure, it writes a structured learning: category, title, body, sprint. Nightly embedding and weekly consolidation deduplicate and surface patterns across sessions. The result is a knowledge base that grows with the project — not a chat history that scrolls away.
+
+When Claude starts a session, it reads recent learnings relevant to the current story before touching any code. It doesn't rediscover what it already knows.
+
 ### 2. An engineered context layer (`grove[index]`)
 
-The central technical contribution of grove is a corpus indexing system that combines three complementary representations:
+The central technical contribution of grove is a corpus indexing system that combines five complementary representations into a search space that is semantically rich, statistically grounded, and self-maintaining — without the brittleness of knowledge graphs or the opacity of pure vector retrieval.
 
-**Semantic embeddings** (via `sentence-transformers`) encode the meaning of each chunk as a dense vector. FAISS retrieves the nearest neighbors to a query at sub-millisecond latency, regardless of corpus size.
+**Semantic embeddings** (via `sentence-transformers`) encode the meaning of each chunk as a dense vector. FAISS retrieves the nearest neighbors to a query at sub-millisecond latency, regardless of corpus size. This is the retrieval backbone — fast and meaning-aware, but on its own, uninterpretable.
 
-**A tag taxonomy** extracts discrete, human-readable concepts from each chunk using a local LLM (Ollama). Tags form a sparse, interpretable index over the corpus. Unlike embeddings, they can be inspected, merged, and reasoned about directly.
+**A tag taxonomy** extracts discrete, human-readable concepts from each chunk using a local LLM (grove[swarm]). Tags form a sparse, interpretable index over the corpus. Unlike embeddings, they can be inspected, merged, and reasoned about directly. A chunk tagged `[local-ai, react-loop, ollama]` is immediately legible — to Claude and to you.
 
-**Descriptive statistics** track term frequency, co-occurrence, and correlation across the corpus. These statistics power automatic tag management: consolidating near-synonyms, splitting overloaded tags, detecting taxonomic drift as the corpus evolves.
+**Descriptive statistics** track term frequency, co-occurrence, and correlation across the entire corpus. These statistics power automatic tag management: consolidating near-synonyms, splitting overloaded tags, detecting drift as the corpus evolves. The taxonomy is not a static list you maintain — it's a living structure the system keeps accurate.
 
-The combination is the key insight: **tags reduce the semantic search space before embeddings are queried.** A query tagged `[local-ai, architecture]` searches a pre-filtered subset of the corpus, not the full index. Local encoders and LLMs operate on high-signal subsets — which makes them viable at scales where full-corpus search would require something far more expensive.
+**Clustering** (HDBSCAN + UMAP 3D projection) operates on the embedding space to discover emergent regions of semantic density. Where descriptive statistics reveal *what* the corpus talks about, clustering reveals *how it's organized* — surfacing natural groupings that no predefined schema could anticipate. Clusters are computed, not declared.
 
-As the corpus grows, the system gets *more* accurate, not less. Clustering algorithms (HDBSCAN, UMAP) reveal emergent structure in the tag space, driving the auto-management layer that keeps the taxonomy clean without manual curation.
+**Narrative summaries** are the layer that makes the rest usable at query time. Each cluster — and any filtered subspace defined by tag intersection — can be summarized into a deterministic natural-language narrative using local models (grove[swarm]). Because the summary procedure is deterministic and the cluster membership is stable between re-indexing runs, narratives can be cached and retrieved rather than re-generated on every query.
+
+This determinism is the key property. It means: when Claude needs to understand what a region of the corpus contains, it reads a pre-computed narrative rather than scanning raw chunks. The search problem transforms from *find similar text* into *find the region of meaning that contains the answer* — then read the narrative that describes it.
+
+The combination replaces brittle features typical of knowledge graphs (explicitly declared edges, fragile under schema change) and hierarchical labeling systems (every node manually placed, taxonomy drift undetected) with a structure that emerges statistically from the corpus itself. Tags reduce the semantic search space before FAISS is queried. Clustering organizes what the tags reveal. Narratives make clusters legible to Claude without burning context on raw chunks.
+
+**Tags reduce the search space. Clusters organize it. Narratives make it readable.**
+
+As the corpus grows, the system gets *more* accurate, not less — because the statistical signal strengthens, the clusters tighten, and the narratives become more precise.
 
 ### 3. A local model workforce (`grove[swarm]`)
 
@@ -232,6 +267,24 @@ grove/
 
 ---
 
+## Why not LangChain / LlamaIndex / a RAG framework?
+
+Standard RAG frameworks solve retrieval. Grove solves *context engineering at scale* — a broader problem of which retrieval is one part.
+
+| | Standard RAG | Grove |
+|--|-------------|-------|
+| **Retrieval** | Vector similarity over full corpus | Tag pre-filter → FAISS over subspace |
+| **Search space** | Flat — all chunks equally eligible | Structured — clusters with narrative summaries |
+| **Taxonomy** | Static (you define it) or absent | Emergent — statistically derived, auto-managed |
+| **Agent memory** | Per-session (lost on close) | Persistent — SQLite board + learnings across sessions |
+| **Volume work** | Claude (expensive) or no LLM | Local Ollama workers (cheap, parallel) |
+| **Quality visibility** | None | Judge scoring by dimension + prompt versioning |
+| **Knowledge capture** | None | Structured learnings with nightly deduplication |
+
+Knowledge graphs and hierarchical ontologies offer interpretability but require manual curation and break under schema change. Grove's tag taxonomy is interpretable *and* self-maintaining — because it's statistically derived from the corpus rather than declared. Clusters and narratives provide the structure of an ontology without its fragility.
+
+---
+
 ## Design principles
 
 **Claude-first.** Every module is designed around Claude's working patterns — not as a tool Claude uses, but as infrastructure Claude inhabits. The board is Claude's memory. The index is Claude's perception layer. The swarm is Claude's workforce.
@@ -248,7 +301,11 @@ grove/
 
 ## Origin
 
-Grove was extracted from [grow](https://github.com/michaelkalish2008/grow) — a local-first semantic search and brand-building system built to manage its own development using the same infrastructure it provides. The board, swarm, and index modules were battle-tested in grow before being generalized here.
+Grove was extracted from [grow](https://github.com/michaelkalish2008/grow) — a local-first semantic search and brand-building system. Grow uses grove to manage its own development: the board tracks grow's stories and sprints, the swarm runs grow's tagging pipeline, and the index organizes grow's corpus of code, content drafts, and research notes.
+
+This is not incidental. Grove was designed by being used — the abstractions reflect real friction encountered while building a production corpus indexing system, not hypothetical use cases. The learnings system exists because Claude kept re-deriving the same root causes. The sampling layer exists because judging every worker output was immediately cost-prohibitive. The tag auto-management exists because manually curating a taxonomy at 10,000 chunks doesn't scale.
+
+Grow is the reference implementation. If you want to see all three modules working together in a real project, start there.
 
 ---
 
