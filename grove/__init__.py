@@ -32,7 +32,7 @@ _MODULE_SCHEMAS: dict[str, list[Path]] = {
         _SCHEMA_DIR / "learnings" / "learnings.sql",
     ],
     "swarm": [
-        _SCHEMA_DIR / "swarm" / "swarm.sql",
+        _SCHEMA_DIR / "swarm" / "swarm.sql",   # judge_scores
     ],
 }
 
