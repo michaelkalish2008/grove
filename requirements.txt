@@ -1,0 +1,13 @@
+# grove — development install
+# Installs all modules + dev tools in editable mode.
+#
+# Usage:
+#   pip install -r requirements.txt
+#
+# For production, install only what you need:
+#   pip install grove[board]         # agile board, no heavy deps
+#   pip install grove[swarm]         # local model swarm + Claude ops
+#   pip install grove[index]         # corpus index + FAISS
+#   pip install grove[all]           # everything
+
+-e .[all,dev]

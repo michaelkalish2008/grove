@@ -1,0 +1,7 @@
+# grove[board] — agile board module
+# Zero heavy dependencies. Pure Python stdlib + SQLite.
+#
+# Usage:
+#   pip install -r requirements-board.txt
+
+grove[board]

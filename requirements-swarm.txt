@@ -1,0 +1,9 @@
+# grove[swarm] — local model swarm module
+# Requires Ollama running locally: https://ollama.ai
+# Requires ANTHROPIC_API_KEY for claude_ops + claude_judge.
+#
+# Usage:
+#   pip install -r requirements-swarm.txt
+#   ollama pull qwen3:8b
+
+grove[swarm]
